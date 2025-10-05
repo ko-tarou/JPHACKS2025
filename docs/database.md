@@ -74,7 +74,7 @@ erDiagram
   }
   
   users ||--o{ search_histories : "searches"
-  users ||--o{ recipes_histories : "views"
+  users ||--o{ recipe_histories : "views"
   users ||--o{ notices : "receives"
   users ||--o{ favorites : "adds"
   users ||--o{ dining_plans : "plans"
@@ -87,6 +87,6 @@ erDiagram
   recipes ||--o{ favorites : "favorited_by"
   recipes ||--o{ dining_plans : "scheduled_in"
   recipes ||--o{ comments : "receives"
-  recipes ||--o{ recipes_histories : "viewed_in"
-  recipes ||--|{ recipes_content : "has_steps"
+  recipes ||--o{ recipe_histories : "viewed_in"
+  recipes ||--|{ recipe_content : "has_steps"
 ```
