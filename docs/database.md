@@ -38,8 +38,8 @@ erDiagram
     string picture_url
     string point
   }
-  recipes_content {
-    string recipes_content_id PK
+  recipe_content {
+    string recipe_content_id PK
     string recipe_id FK
     string picture
     string step
