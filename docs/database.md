@@ -3,89 +3,90 @@
 ```mermaid
 erDiagram
   users {
-    string userid PK
+    string user_id PK
     string username
     string password
     string profile
-    boolean is-wink
+    boolean is_wink
     string location
-    boolean is-ai
+    boolean is_ai
   }
-  search-histories {
-    string search-historiesid PK
-    string userid FK
-    string search-word
-    datetime searched-at
+  search_histories {
+    string search_histories_id PK
+    string user_id FK
+    string search_word
+    datetime searched_at
   }
-  recipes-histories {
-	  string recipes-historiesid PK
-	  string userid FK
-	  string recipesid FK
-	  datetime readed-at
+  recipe_histories {
+    string id PK
+    string user_id FK
+    string recipe_id FK
+    datetime read_at
   }
   notices {
-    string noticeid PK
-    string userid FK
+    string notice_id PK
+    string user_id FK
     string title
     string content
-    boolean is-read
+    boolean is_read
   }
   recipes {
-    string recipeid PK
-    string chef
+    string recipe_id PK
+    string chef_id FK
     string status
     string title
-    string pictureurl
+    string picture_url
     string point
   }
-  recipes-content {
-    string recipes-contentid PK
-    string recipeid FK
+  recipes_content {
+    string recipes_content_id PK
+    string recipe_id FK
     string picture
     string step
     string description
   }
   favorites {
-    string favoriteid PK
-    string userid FK
-    string recipeid FK
+    string favorite_id PK
+    string user_id FK
+    string recipe_id FK
   }
-  dining-plans {
-    string dining-planid PK
-    string userid FK
-    string recipeid FK
-    date dining-day
+  dining_plans {
+    string dining_plan_id PK
+    string user_id FK
+    string recipe_id FK
+    date dining_day
   }
   follows {
-    string followid PK
-    string from-userid FK
-    string to-userid FK
+    string follow_id PK
+    string follower_id FK
+    string followed_id FK
   }
   comments {
-    string commentid PK
-    string userid FK
-    string recipeid FK
+    string comment_id PK
+    string user_id FK
+    string recipe_id FK
     string content
   }
   blocks {
-    string blockid PK
-    string userid FK
-    string block-userid FK
+    string block_id PK
+    string blocker_id FK
+    string blocked_id FK
   }
   
-  users ||--o{ search-histories : "searches"
-  users ||--o{ recipes-histories : "views"
+  users ||--o{ search_histories : "searches"
+  users ||--o{ recipes_histories : "views"
   users ||--o{ notices : "receives"
   users ||--o{ favorites : "adds"
-  users ||--o{ dining-plans : "plans"
+  users ||--o{ dining_plans : "plans"
   users ||--o{ follows : "follows"
   users ||--o{ follows : "followed_by"
   users ||--o{ comments : "writes"
   users ||--o{ blocks : "blocks"
   users ||--o{ blocks : "blocked_by"
+  users ||--o{ recipes : "creates"
   recipes ||--o{ favorites : "favorited_by"
-  recipes ||--o{ dining-plans : "scheduled_in"
+  recipes ||--o{ dining_plans : "scheduled_in"
   recipes ||--o{ comments : "receives"
-  recipes ||--o{ recipes-histories : "viewed_in"
-  recipes ||--|{ recipes-content : "has_steps"
+  recipes ||--o{ recipes_histories : "viewed_in"
+  recipes ||--|{ recipes_content : "has_steps"
 ```
