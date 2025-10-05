@@ -7,6 +7,7 @@ erDiagram
     string username
     string password
     string profile
+    string icon
     boolean is_wink
     string location
     boolean is_ai
