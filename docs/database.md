@@ -11,18 +11,24 @@ erDiagram
     boolean is_wink
     string location
     boolean is_ai
+    datetime created_at
+    datetime updated_at
   }
   search_histories {
     string search_history_id PK
     string user_id FK
     string search_word
     datetime searched_at
+    datetime created_at
+    datetime updated_at
   }
   recipe_histories {
     string recipe_history_id PK
     string user_id FK
     string recipe_id FK
     datetime read_at
+    datetime created_at
+    datetime updated_at
   }
   notices {
     string notice_id PK
@@ -30,6 +36,8 @@ erDiagram
     string title
     string content
     boolean is_read
+    datetime created_at
+    datetime updated_at
   }
   recipes {
     string recipe_id PK
@@ -38,6 +46,8 @@ erDiagram
     string title
     string picture_url
     string point
+    datetime created_at
+    datetime updated_at
   }
   recipe_content {
     string recipe_content_id PK
@@ -45,33 +55,45 @@ erDiagram
     string picture
     string step
     string description
+    datetime created_at
+    datetime updated_at
   }
   favorites {
     string favorite_id PK
     string user_id FK
     string recipe_id FK
+    datetime created_at
+    datetime updated_at
   }
   dining_plans {
     string dining_plan_id PK
     string user_id FK
     string recipe_id FK
     date dining_day
+    datetime created_at
+    datetime updated_at
   }
   follows {
     string follow_id PK
     string follower_id FK
     string followed_id FK
+    datetime created_at
+    datetime updated_at
   }
   comments {
     string comment_id PK
     string user_id FK
     string recipe_id FK
     string content
+    datetime created_at
+    datetime updated_at
   }
   blocks {
     string block_id PK
     string blocker_id FK
     string blocked_id FK
+    datetime created_at
+    datetime updated_at
   }
   
   users ||--o{ search_histories : "searches"
