@@ -13,13 +13,13 @@ erDiagram
     boolean is_ai
   }
   search_histories {
-    string search_histories_id PK
+    string search_history_id PK
     string user_id FK
     string search_word
     datetime searched_at
   }
   recipe_histories {
-    string id PK
+    string recipe_history_id PK
     string user_id FK
     string recipe_id FK
     datetime read_at
