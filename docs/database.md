@@ -34,7 +34,6 @@ erDiagram
     string content
     boolean is_read
     datetime created_at
-    datetime updated_at
   }
   category {
     string category_id PK
@@ -77,7 +76,6 @@ erDiagram
     string user_id FK
     string recipe_id FK
     datetime created_at
-    datetime updated_at
   }
   dining_plans {
     string dining_plan_id PK
@@ -92,7 +90,6 @@ erDiagram
     string follower_id FK
     string followed_id FK
     datetime created_at
-    datetime updated_at
   }
   comments {
     string comment_id PK
@@ -107,7 +104,6 @@ erDiagram
     string blocker_id FK
     string blocked_id FK
     datetime created_at
-    datetime updated_at
   }
   
   users ||--o{ search_histories : "searches"
