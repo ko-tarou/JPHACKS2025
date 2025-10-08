@@ -39,9 +39,16 @@ erDiagram
     datetime created_at
     datetime updated_at
   }
+  category {
+    string category_id PK
+    string category_name
+    datetime created_at
+    datetime updated_at
+  }
   recipes {
     string recipe_id PK
     string chef_id FK
+    string category_id FK
     string status
     string title
     string picture_url
@@ -123,4 +130,5 @@ erDiagram
   recipes ||--o{ recipe_histories : "viewed_in"
   recipes ||--|{ recipe_content : "has_steps"
   recipes ||--o{ recipe_material : "contains"
+  category ||--o{ recipes : "categorizes"
 ```
