@@ -5,7 +5,7 @@ erDiagram
   users {
     string user_id PK
     string username
-    string password
+    string password_hash
     string profile
     string icon
     boolean is_wink
@@ -47,7 +47,7 @@ erDiagram
   }
   recipes {
     string recipe_id PK
-    string chef_id FK
+    string user_id FK
     string category_id FK
     string status
     string title
@@ -70,7 +70,7 @@ erDiagram
     string recipe_content_id PK
     string recipe_id FK
     string picture
-    string step
+    int step
     string description
     datetime created_at
     datetime updated_at
