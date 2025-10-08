@@ -6,6 +6,7 @@ erDiagram
     string user_id PK
     string username
     string password_hash
+    string mailadress
     string profile
     string icon
     boolean is_wink
