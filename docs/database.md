@@ -20,16 +20,12 @@ erDiagram
     string user_id FK
     string search_word
     datetime searched_at
-    datetime created_at
-    datetime updated_at
   }
   recipe_histories {
     string recipe_history_id PK
     string user_id FK
     string recipe_id FK
     datetime read_at
-    datetime created_at
-    datetime updated_at
   }
   notices {
     string notice_id PK
