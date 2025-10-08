@@ -46,6 +46,16 @@ erDiagram
     string title
     string picture_url
     string point
+    int serving_count
+    datetime created_at
+    datetime updated_at
+  }
+  recipe_material {
+    string recipe_material_id PK
+    string recipe_id FK
+    string material_name
+    string material_count
+    string material_unit
     datetime created_at
     datetime updated_at
   }
@@ -112,4 +122,5 @@ erDiagram
   recipes ||--o{ comments : "receives"
   recipes ||--o{ recipe_histories : "viewed_in"
   recipes ||--|{ recipe_content : "has_steps"
+  recipes ||--o{ recipe_material : "contains"
 ```
