@@ -2,22 +2,16 @@ import Foundation
 import Observation
 
 @Observable final class AIChatViewModel {
-    private let ai = AIChatService()
+    private let ai: AIChatService
+    init(ai: AIChatService = AIChatService()) { self.ai = ai }  // ← DI
 
-    var availability: AIAvailabilityState = .other("未判定")
-    var messages: [Message] = [
-        .init(role: .assistant, text: "こんにちは。Apple Intelligence と最小構成で会話できます。")
-    ]
-    var input: String = ""
+    var messages: [Message] = [.init(role: .assistant, text: "こんにちは。Apple Intelligence と最小構成で会話できます。")]
+    var input = ""
     var isSending = false
     var errorMessage: String?
+    var availability: AIAvailabilityState = .simulator
 
-    func onAppear() {
-        availability = ai.availability()
-        if availability != .available {
-            messages.append(.init(role: .system, text: availabilityLabel()))
-        }
-    }
+    func onAppear() { availability = ai.availability() }
 
     @MainActor
     func send() async {
@@ -28,21 +22,20 @@ import Observation
         isSending = true
         defer { isSending = false }
         do {
-            let answer = try await ai.reply(t)
-            messages.append(.init(role: .assistant, text: answer))
-        } catch {
-            errorMessage = "AI応答エラー: \(error.localizedDescription)"
-        }
+            let a = try await ai.reply(t)
+            messages.append(.init(role: .assistant, text: a))
+        } catch { errorMessage = "AI応答エラー: \(error.localizedDescription)" }
     }
 
-    private func availabilityLabel() -> String {
+    // ← Viewの stateText をこちらに吸収
+    var availabilityText: String {
         switch availability {
         case .available: "利用可能"
-        case .deviceNotEligible: "非対応端末です"
-        case .notEnabled: "設定で Apple Intelligence を有効化してください"
-        case .modelNotReady: "モデル準備中…"
-        case .simulator: "（シミュレーター）Apple Intelligence は利用できません"
-        case .other(let s): "利用不可: \(s)"
+        case .deviceNotEligible: "非対応端末"
+        case .notEnabled: "設定で有効化して下さい"
+        case .modelNotReady: "モデル準備中"
+        case .simulator: "シミュレーター（不可）"
+        case .other(let t): t
         }
     }
 }

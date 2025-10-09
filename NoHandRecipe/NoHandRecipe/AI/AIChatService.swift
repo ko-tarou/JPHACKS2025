@@ -4,12 +4,11 @@ import FoundationModels
 #endif
 
 #if targetEnvironment(simulator)
-
-// ダミー（シミュレーター用）
 final class AIChatService {
     func availability() -> AIAvailabilityState { AIAvailabilityChecker.check() }
     func reply(_ userText: String) async throws -> String {
-        "（シミュレーター）Apple Intelligence は利用できません。実機で試してください。"
+        try? await Task.sleep(for: .seconds(1))   // ← これを追加
+        return "（シミュレーター）Apple Intelligence は利用できません。実機で試してください。"
     }
 }
 

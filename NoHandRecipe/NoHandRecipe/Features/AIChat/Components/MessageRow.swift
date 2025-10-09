@@ -4,10 +4,12 @@ struct MessageRow: View {
     let message: Message
     var body: some View {
         HStack {
-            if message.role == .assistant || message.role == .system {
-                bubble(message.text); Spacer(minLength: 40)
+            if message.role == .user {
+                Spacer(minLength: 40)
+                bubble(message.text, isUser: true)
             } else {
-                Spacer(minLength: 40); bubble(message.text, isUser: true)
+                bubble(message.text)
+                Spacer(minLength: 40)
             }
         }
         .padding(.vertical, 4)

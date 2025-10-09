@@ -6,7 +6,7 @@ struct AIChatView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("状態: \(stateText(vm.availability))")
+                Text("状態: \(vm.availabilityText)")
                     .font(.footnote).foregroundStyle(.secondary)
                 Spacer()
             }
@@ -24,7 +24,11 @@ struct AIChatView: View {
                     .onSubmit { Task { await vm.send() } }
 
                 Button { Task { await vm.send() } } label: {
-                    vm.isSending ? AnyView(ProgressView()) : AnyView(Image(systemName: "paperplane.fill"))
+                    if vm.isSending {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(vm.isSending || vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -38,15 +42,4 @@ struct AIChatView: View {
         }, message: { Text(vm.errorMessage ?? "") })
     }
 
-    private func msg(_ m: Message) -> Message { m } // ForEachのクロージャ簡略
-    private func stateText(_ s: AIAvailabilityState) -> String {
-        switch s {
-        case .available: "利用可能"
-        case .deviceNotEligible: "非対応端末"
-        case .notEnabled: "設定で有効化して下さい"
-        case .modelNotReady: "モデル準備中"
-        case .simulator: "シミュレーター（不可）"
-        case .other(let t): t
-        }
-    }
-}
+
