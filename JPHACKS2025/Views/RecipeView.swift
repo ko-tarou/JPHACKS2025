@@ -1,4 +1,6 @@
 import SwiftUI
+import Vision
+import VisionKit
 
 struct RecipeView: View {
     // 📌 1. スクロール先のIDを保持する状態変数
@@ -6,9 +8,23 @@ struct RecipeView: View {
     // 項目の総数
         private let itemCount = 10
     
+    private let isEyesOk = false
+    
     var body: some View {
         ScrollViewReader { proxy in
             ZStack {
+                VStack {
+                    Text(isEyesOk ? "OK👀" : "NO")
+                        .font(.title)
+                        .padding()
+                        .frame(width: 200, height: 100)
+                        .background(Color.gray.opacity(0.3))
+                    
+                    
+                    Spacer()
+                }
+                
+                
                 ScrollView {
                     VStack(alignment: .leading) {
                         Color.clear
@@ -83,9 +99,34 @@ struct RecipeView: View {
     }
 }
 
+// 顔認識してるかのカード
+struct faceCard: View {
+    @State var isEyesOk: Bool
+    @State var isHandsfreeOk: Bool
+    
+    var body: some View {
+        VStack{
+            Text(isEyesOk ? "OK👀" : "NO")
+                .font(.title)
+                .padding()
+                .frame(width: 200, height: 100)
+                .background(Color.gray.opacity(0.3))
+            
+            Button {
+                self.isHandsfreeOk.toggle()
+            } label: {
+                Text(isHandsfreeOk ? "ハンズフリーモードをOFFにする" : "ハンズフリーモードをONにする")
+            }
+        }
+    }
+}
 
 #Preview {
     RecipeView()
+}
+
+#Preview {
+    faceCard(isEyesOk: false, isHandsfreeOk: false)
 }
 
 
