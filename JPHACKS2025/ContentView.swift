@@ -1,9 +1,3 @@
-//
-//  ContentView.swift
-//  JPHACKS2025
-//
-//  Created by 三ツ井渚 on 2025/10/08.
-//
 
 import SwiftUI
 
