@@ -93,7 +93,7 @@ struct HandsFreeControlView: View {
                 .padding(8)
                 .background(.thinMaterial)
                 .cornerRadius(8)
-                .opacity(isHandsFreeModeOn ? 1.0 : 0.0) // ハンズフリーモード中のみ表示
+                .opacity(isHandsFreeModeOn ? 1.0 : 0.0)
             
             Button(action: onToggle) {
                 Text(isHandsFreeModeOn ? "ハンズフリーモード OFF" : "ハンズフリーモード ON")

@@ -1,9 +1,9 @@
-import SwiftUI // @Publishedを使うために必要
+import SwiftUI
 import Vision
 import AVFoundation
 
 /// スクロール要求を表現する構造体
-struct ScrollRequest: Identifiable, Equatable { // Equatableを追加しました
+struct ScrollRequest: Identifiable, Equatable {
     let id = UUID()
     let direction: ScrollDirection
 }
@@ -14,7 +14,7 @@ enum ScrollDirection {
 
 /// ウィンクの状態を管理するenum
 private enum WinkState {
-    case notWinking
+    case eyesOpen
     case winkStarted(eye: WinkedEye, timestamp: Date)
     
     enum WinkedEye {
@@ -33,110 +33,231 @@ class HandsFreeViewModel: NSObject, ObservableObject {
     private let visionQueue = DispatchQueue(label: "vision.queue", qos: .userInitiated)
 
     // MARK: - Wink Detection State
-    private var winkState: WinkState = .notWinking
+    private var winkState: WinkState = .eyesOpen
     private var lastScrollTime: Date?
+    private var baselineLeftEyeOpenness: CGFloat = 0.5
+    private var baselineRightEyeOpenness: CGFloat = 0.5
+    // フリッカー抑制用の追跡情報
+    private var trackedFaceUUID: UUID?
+    private var trackedBoundingBox: CGRect?
+    private var consecutiveDetections = 0
+    private var consecutiveMisses = 0
+    private let detectionOnThreshold = 2     // 何フレーム連続検出でONにするか
+    private let detectionOffThreshold = 5    // 何フレーム連続未検出でOFFにするか
     
-    // 修正1: overrideキーワードを追加
+    // トラッキング状態を定期的に表示するためのタイマー
+    private var trackingStatusTimer: Timer?
+    
+    // 📌 追加：このセッションで一度でも顔を検出したかを記録するフラグ
+    private var hasDetectedFaceInThisSession = false
+
     override init() {
-        super.init() // NSObjectのinitを呼び出す
-        // CameraServiceからのフレーム更新を受け取るために自身をdelegateに設定
+        super.init()
         cameraService.setDelegate(self)
     }
 
     func toggleHandsFreeMode() {
-        // UIに関わるプロパティなのでメインスレッドで更新
         DispatchQueue.main.async {
             self.isHandsFreeModeOn.toggle()
             if self.isHandsFreeModeOn {
                 self.cameraService.startSession()
+                self.startTrackingStatusTimer()
             } else {
                 self.cameraService.stopSession()
                 self.isFaceDetected = false
+                self.trackedFaceUUID = nil
+                self.trackedBoundingBox = nil
+                self.consecutiveDetections = 0
+                self.consecutiveMisses = 0
+                self.stopTrackingStatusTimer()
+                // 📌 モードOFFでフラグをリセット
+                self.hasDetectedFaceInThisSession = false
             }
         }
     }
     
-    private func processFrame(_ buffer: CMSampleBuffer) {
+    // MARK: - Status Timer
+    private func startTrackingStatusTimer() {
+        trackingStatusTimer?.invalidate()
+        trackingStatusTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.printTrackingStatus()
+        }
+    }
+    
+    private func stopTrackingStatusTimer() {
+        trackingStatusTimer?.invalidate()
+        trackingStatusTimer = nil
+        print("【トラッキングステータス】: 停止しました。")
+    }
+    
+    private func printTrackingStatus() {
+        if let uuid = trackedFaceUUID {
+            print("【トラッキングステータス】: ✅ 追跡中 (ID: \(uuid.uuidString.prefix(8)))")
+        } else {
+            print("【トラッキングステータス】: ❌ 探査中 (Searching for face)")
+        }
+    }
+    
+    // MARK: - Vision Processing
+    private func processFrame(_ buffer: CMSampleBuffer, orientation: CGImagePropertyOrientation) {
         let request = VNDetectFaceLandmarksRequest { [weak self] request, error in
-            // 修正2: 最初にselfを安全にアンラップする
             guard let self = self else { return }
             
-            guard let observations = request.results as? [VNFaceObservation], let observation = observations.first else {
-                // 顔が検出されなかった場合
-                DispatchQueue.main.async { self.isFaceDetected = false }
-                self.resetWinkState()
+            guard let observations = request.results as? [VNFaceObservation], !observations.isEmpty else {
+                // ミスをカウントし、しきい値を超えたときだけOFFにする
+                self.consecutiveMisses += 1
+                self.consecutiveDetections = 0
+                if self.consecutiveMisses >= self.detectionOffThreshold {
+                    DispatchQueue.main.async { self.isFaceDetected = false }
+                    self.trackedFaceUUID = nil
+                    self.trackedBoundingBox = nil
+                    self.resetWinkState()
+                }
                 return
             }
-            // 顔が検出された場合
-            DispatchQueue.main.async { self.isFaceDetected = true }
-            self.updateWinkState(with: observation)
+            
+            var targetObservation: VNFaceObservation?
+
+            // まずIoUで前回の顔に最も近いものを選択。なければ最大の顔を選ぶ
+            if let prevBox = self.trackedBoundingBox {
+                var bestIoU: CGFloat = 0
+                var bestObs: VNFaceObservation?
+                for obs in observations {
+                    let iou = self.intersectionOverUnion(prevBox, obs.boundingBox)
+                    if iou > bestIoU {
+                        bestIoU = iou
+                        bestObs = obs
+                    }
+                }
+                // IoUが低すぎる場合は最大領域の顔にフォールバック
+                if bestIoU > 0.1, let chosen = bestObs {
+                    targetObservation = chosen
+                } else {
+                    targetObservation = observations.max(by: { $0.boundingBox.width * $0.boundingBox.height < $1.boundingBox.width * $1.boundingBox.height })
+                }
+            } else {
+                targetObservation = observations.max(by: { $0.boundingBox.width * $0.boundingBox.height < $1.boundingBox.width * $1.boundingBox.height })
+            }
+            
+            if let observation = targetObservation {
+                if !self.hasDetectedFaceInThisSession {
+                    print("【初回顔検出】: ✅ 成功！トラッキングを開始します。")
+                    // フラグをtrueにして、次回以降は表示しないようにする
+                    self.hasDetectedFaceInThisSession = true
+                }
+                // 命中をカウントし、しきい値を超えたときだけONにする
+                self.consecutiveDetections += 1
+                self.consecutiveMisses = 0
+                if self.consecutiveDetections >= self.detectionOnThreshold {
+                    DispatchQueue.main.async { self.isFaceDetected = true }
+                }
+                // 追跡情報を更新（スムージング）
+                let newBox = observation.boundingBox
+                if let prev = self.trackedBoundingBox {
+                    let alpha: CGFloat = 0.7
+                    self.trackedBoundingBox = CGRect(
+                        x: prev.origin.x * alpha + newBox.origin.x * (1 - alpha),
+                        y: prev.origin.y * alpha + newBox.origin.y * (1 - alpha),
+                        width: prev.size.width * alpha + newBox.size.width * (1 - alpha),
+                        height: prev.size.height * alpha + newBox.size.height * (1 - alpha)
+                    )
+                } else {
+                    self.trackedBoundingBox = newBox
+                }
+                self.trackedFaceUUID = observation.uuid
+                self.handleEyeAction(faceObservation: observation)
+            } else {
+                // 適切なターゲットが選べない場合はミス扱い
+                self.consecutiveMisses += 1
+                self.consecutiveDetections = 0
+                if self.consecutiveMisses >= self.detectionOffThreshold {
+                    DispatchQueue.main.async { self.isFaceDetected = false }
+                    self.resetWinkState()
+                    self.trackedFaceUUID = nil
+                    self.trackedBoundingBox = nil
+                }
+            }
         }
         
-        // CVPixelBufferを使ってリクエストハンドラを実行
-        let handler = VNImageRequestHandler(cmSampleBuffer: buffer, orientation: .up, options: [:])
-        try? handler.perform([request])
+//        let currentOrientation = self.currentImageOrientation()
+        let handler = VNImageRequestHandler(cmSampleBuffer: buffer, orientation: orientation, options: [:])
+        
+        do {
+            try handler.perform([request])
+        } catch {
+            print("Visionリクエストの実行に失敗しました: \(error)")
+        }
     }
     
-    private func updateWinkState(with observation: VNFaceObservation) {
-        guard let landmarks = observation.landmarks else { return }
+    private func handleEyeAction(faceObservation: VNFaceObservation) {
+        guard let landmarks = faceObservation.landmarks else { return }
         
-        let leftEyeOpenness = self.calculateEyeOpenness(for: landmarks.leftEye)
-        let rightEyeOpenness = self.calculateEyeOpenness(for: landmarks.rightEye)
-        let winkThreshold: CGFloat = 0.4
+        let currentLeftEyeOpenness = self.calculateEyeOpenness(for: landmarks.leftEye)
+        let currentRightEyeOpenness = self.calculateEyeOpenness(for: landmarks.rightEye)
+        
+        let winkCloseThreshold: CGFloat = 0.4
+        let winkOpenThreshold: CGFloat = 0.6
 
-        var currentWink: WinkState.WinkedEye?
-        if rightEyeOpenness / leftEyeOpenness < winkThreshold {
-            currentWink = .right // 右目ウィンク（スクロール上）
-        } else if leftEyeOpenness / rightEyeOpenness < winkThreshold {
-            currentWink = .left // 左目ウィンク（スクロール下）
+        var didLeftEyeClose = false
+        var didRightEyeClose = false
+
+        if currentLeftEyeOpenness < baselineLeftEyeOpenness * winkCloseThreshold {
+            didLeftEyeClose = true
+        }
+        
+        if currentRightEyeOpenness < baselineRightEyeOpenness * winkCloseThreshold {
+            didRightEyeClose = true
         }
 
-        // --- ウィンク状態管理（State Machine）---
         switch winkState {
-        case .notWinking:
-            if let winkEye = currentWink {
-                // ウィンクが開始された
-                winkState = .winkStarted(eye: winkEye, timestamp: Date())
+        case .eyesOpen:
+            if didLeftEyeClose && !didRightEyeClose {
+                winkState = .winkStarted(eye: .left, timestamp: Date())
+            } else if didRightEyeClose && !didLeftEyeClose {
+                winkState = .winkStarted(eye: .right, timestamp: Date())
+            } else {
+                baselineLeftEyeOpenness = (baselineLeftEyeOpenness * 0.95) + (currentLeftEyeOpenness * 0.05)
+                baselineRightEyeOpenness = (baselineRightEyeOpenness * 0.95) + (currentRightEyeOpenness * 0.05)
             }
             
         case .winkStarted(let eye, let timestamp):
-            if currentWink == eye {
-                // ウィンクが継続している
-                let duration = Date().timeIntervalSince(timestamp)
-                
-                if let lastScroll = lastScrollTime {
-                    // 2回目以降のスクロール
-                    if Date().timeIntervalSince(lastScroll) >= 1.5 {
+            let duration = Date().timeIntervalSince(timestamp)
+            
+            var isWinkContinuing = false
+            if eye == .left && didLeftEyeClose && currentLeftEyeOpenness < baselineLeftEyeOpenness * winkOpenThreshold {
+                isWinkContinuing = true
+            } else if eye == .right && didRightEyeClose && currentRightEyeOpenness < baselineRightEyeOpenness * winkOpenThreshold {
+                isWinkContinuing = true
+            }
+            
+            if isWinkContinuing {
+                if duration >= 1.0 {
+                    if let lastScroll = lastScrollTime, Date().timeIntervalSince(lastScroll) < 1.5 {
+                    } else {
                         triggerScroll(for: eye)
+                        winkState = .eyesOpen
                     }
-                } else if duration >= 1.0 {
-                    // 最初のスクロール
-                    triggerScroll(for: eye)
                 }
             } else {
-                // ウィンクが終了した
-                resetWinkState()
+                winkState = .eyesOpen
             }
         }
     }
     
     private func triggerScroll(for eye: WinkState.WinkedEye) {
         lastScrollTime = Date()
-        let direction: ScrollDirection = (eye == .left) ? .down : .up
+        let direction: ScrollDirection = (eye == .right) ? .down : .up
         
-        // UIに関わるプロパティなのでメインスレッドで更新
         DispatchQueue.main.async {
             self.scrollRequest = ScrollRequest(direction: direction)
         }
     }
     
     private func resetWinkState() {
-        winkState = .notWinking
-        lastScrollTime = nil
+        winkState = .eyesOpen
     }
     
     private func calculateEyeOpenness(for eye: VNFaceLandmarkRegion2D?) -> CGFloat {
-        // (以前の回答と同じロジック)
         guard let eye = eye else { return 0 }
         let points = eye.normalizedPoints
         guard points.count >= 4 else { return 0 }
@@ -146,13 +267,62 @@ class HandsFreeViewModel: NSObject, ObservableObject {
         let avgBottomY = bottomPoints.reduce(0) { $0 + $1.y } / CGFloat(bottomPoints.count)
         return abs(avgTopY - avgBottomY)
     }
+    
+//    private func currentImageOrientation() -> CGImagePropertyOrientation {
+//        let interfaceOrientation = UIApplication.shared.windows.first?.windowScene?.interfaceOrientation ?? .unknown
+//        
+//        switch interfaceOrientation {
+//        case .portrait: return .right
+//        case .portraitUpsideDown: return .left
+//        case .landscapeLeft: return .down
+//        case .landscapeRight: return .up
+//        default: return .right
+//        }
+//    }
 }
 
-// ViewModelがカメラのフレームを受け取るための準拠
 extension HandsFreeViewModel: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // デバッグ: フレーム受信を確認
+        #if DEBUG
+        print("[Camera] sampleBuffer received. orientation=\(connection.videoOrientation.rawValue)")
+        #endif
+        // 📌 修正点 2: connectionから現在の映像の向きを取得する
+        let videoOrientation = connection.videoOrientation
+                
+        // 📌 修正点 3: 取得した向きをVisionが理解できる形式に変換する
+        let imageOrientation = videoOrientationToImageOrientation(videoOrientation)
+        
         visionQueue.async {
-            self.processFrame(sampleBuffer)
+            // 📌 修正点 4: processFrameに変換後の向きを渡す
+            self.processFrame(sampleBuffer, orientation: imageOrientation)
         }
+    }
+    
+    // 📌 追加：AVCaptureVideoOrientationをCGImagePropertyOrientationに変換するヘルパー関数
+    private func videoOrientationToImageOrientation(_ videoOrientation: AVCaptureVideoOrientation) -> CGImagePropertyOrientation {
+        switch videoOrientation {
+        case .portrait:
+            // フロントカメラの場合、ポートレートは右に90度回転した状態
+            return .right
+        case .portraitUpsideDown:
+            return .left
+        case .landscapeRight:
+            return .up
+        case .landscapeLeft:
+            return .down
+        @unknown default:
+            return .right
+        }
+    }
+
+    // IoU (Intersection over Union) を計算（Visionの正規化座標系 [0,1] 前提）
+    private func intersectionOverUnion(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let inter = a.intersection(b)
+        if inter.isNull { return 0 }
+        let interArea = inter.width * inter.height
+        let unionArea = a.width * a.height + b.width * b.height - interArea
+        if unionArea <= 0 { return 0 }
+        return interArea / unionArea
     }
 }
