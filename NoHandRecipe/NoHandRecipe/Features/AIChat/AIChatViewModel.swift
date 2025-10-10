@@ -33,16 +33,27 @@ final class AIChatViewModel {
         defer { isSending = false }
 
         do {
-            let a = try await ai.reply(t)
-            messages.append(.init(role: .assistant, text: a))
-            tts.speak(a)               // 返答を即読み上げ
-        } catch {
-            errorMessage = "AI応答エラー: \(error.localizedDescription)"
-        }
-    }
+                // 後で実データに差し替える
+                let ctx = SystemPrompt.CookingContext(
+                    recipeTitle: "基本のペペロンチーノ",
+                    currentStep: "手順3: ニンニクを弱火で香りが出るまで（目安2分）",
+                    servings: 2
+                )
+                let prompt = """
+                \(SystemPrompt.cookingAssistant)
 
-    // TTS（UI からも使える最小 API）
-    func speak(_ text: String) {      // ← 追加：任意テキストを読み上げ
+                \(SystemPrompt.buildContext(ctx, user: t))
+                """
+
+                let a = try await ai.reply(prompt)
+            messages.append(.init(role: .assistant, text: a))
+                tts.speak(a)
+            } catch {
+                errorMessage = "AI応答エラー: \(error.localizedDescription)"
+            }
+        }
+
+    func speak(_ text: String) {
         tts.speak(text)
     }
     func stopTTS() { tts.stop() }
@@ -51,8 +62,7 @@ final class AIChatViewModel {
             tts.speak(last.text)
         }
     }
-
-    // View 用表示
+//view用
     var availabilityText: String {
         switch availability {
         case .available: "利用可能"
